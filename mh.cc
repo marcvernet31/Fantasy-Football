@@ -3,6 +3,7 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include<map>
 #include <algorithm>
 #include <math.h>
 #include <ctime>
@@ -18,7 +19,8 @@ struct Jugador{
   int punts;
 };
 
-struct CEquip{
+//Configuracio d'un Equip: nombre de jugadors per cada posició
+struct ConfEquip{
   int por;
   int def;
   int mig;
@@ -26,15 +28,79 @@ struct CEquip{
   int pressupost;
 };
 
-
-int pressupost;
+int PRESSUPOST;
 vector<Jugador> POR;
 vector<Jugador> DEF;
 vector<Jugador> MIG;
 vector<Jugador> DAV;
+vector<Jugador>RESULTAT;
+map<string, bool> USAT;
 
-double DBL_MAX = std::numeric_limits<double>::max();
-//Importar la base de dades en un vector de Jugadors
+string outputFile;
+
+//Llegida de dades d'entrada
+void input(int argc, char** argv, int& J, ConfEquip& confEquip) {
+  string filename = argv[2];
+  ifstream f(filename);
+  f >> confEquip.def >> confEquip.mig >> confEquip.dav >> confEquip.pressupost >> J;
+	f.close();
+
+  confEquip.por = 1;
+  PRESSUPOST = confEquip.pressupost;
+}
+
+//Escriptura del resultat al fitxer de sortida
+void output(clock_t start, ConfEquip confEquip){
+  double temps = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+  int puntsTotal = 0; int preuTotal = 0;
+  ofstream File;
+  File.open (outputFile);
+
+  File << temps << endl;
+  int i = 0;
+  File << "POR: " << RESULTAT[0].nom << endl;
+  puntsTotal += RESULTAT[0].punts;
+  preuTotal += RESULTAT[0].preu;
+  ++i;
+
+  File << "DEF: ";
+  bool primer = true;
+  while(i<11 and RESULTAT[i].posicio == "def"){
+    File << (primer ? "" : ";") << RESULTAT[i].nom;
+    primer = false;
+    puntsTotal += RESULTAT[i].punts;
+    preuTotal += RESULTAT[i].preu;
+    ++i;
+  }
+
+  File << endl << "MIG: ";
+  primer = true;
+  while(i<11 and RESULTAT[i].posicio == "mig" and i<11){
+    File << (primer ? "" : ";") << RESULTAT[i].nom;
+    primer = false;
+    puntsTotal += RESULTAT[i].punts;
+    preuTotal += RESULTAT[i].preu;
+    ++i;
+  }
+
+  File << endl << "DAV: ";
+  primer = true;
+  while(i<11 and RESULTAT[i].posicio == "dav" and i<11){
+    File << (primer ? "" : ";") << RESULTAT[i].nom;
+    primer = false;
+    puntsTotal += RESULTAT[i].punts;
+    preuTotal += RESULTAT[i].preu;
+    ++i;
+  }
+
+  File << endl;
+  File << "Punts: " << puntsTotal << endl;
+  File << "Preu: " << preuTotal << endl;
+
+  File.close();
+}
+
+//Importar la base de dades en un vector de Jugadors per cada posicio
 int parser(int argc, char** argv, const int& J) {
   if (argc != 4) {
     cout << "Syntax: " << argv[0] << " data_base.txt" << endl;
@@ -66,7 +132,8 @@ int parser(int argc, char** argv, const int& J) {
   return 0;
 }
 
-void generarEquip(vector <Jugador>& Equip, CEquip confEquip, int& puntsEquip, int& preuEquip){
+//Generar un Equip aleatori amb la configuració demanada
+void generarEquip(vector<Jugador>& Equip, ConfEquip confEquip, int& puntsEquip, int& preuEquip){
   int i = 0;
   Jugador J;
   //POR
@@ -79,6 +146,7 @@ void generarEquip(vector <Jugador>& Equip, CEquip confEquip, int& puntsEquip, in
       puntsEquip += J.punts;
       preuEquip += J.preu;
       ++i;
+      USAT.insert({J.nom, true});
     }
   }
   //DEF
@@ -91,6 +159,7 @@ void generarEquip(vector <Jugador>& Equip, CEquip confEquip, int& puntsEquip, in
       puntsEquip += J.punts;
       preuEquip += J.preu;
       ++i;
+      USAT.insert({J.nom, true});
     }
   }
   //MIG
@@ -103,6 +172,7 @@ void generarEquip(vector <Jugador>& Equip, CEquip confEquip, int& puntsEquip, in
       puntsEquip += J.punts;
       preuEquip += J.preu;
       ++i;
+      USAT.insert({J.nom, true});
     }
   }
   //DAV
@@ -115,64 +185,58 @@ void generarEquip(vector <Jugador>& Equip, CEquip confEquip, int& puntsEquip, in
       puntsEquip += J.punts;
       preuEquip += J.preu;
       ++i;
+      USAT.insert({J.nom, true});
     }
   }
 }
 
+//Crear un equip vei canviant un jugador en una posició especifica
 void nouEquip(int i, vector <Jugador>& EquipVei, int& puntsEquip, int& preuEquip, bool& millor){
   Jugador J;
   if(EquipVei[i].posicio == "por") J = POR[rand()%(POR.size())];
   else if(EquipVei[i].posicio == "def") J = DEF[rand()%(DEF.size())];
   else if(EquipVei[i].posicio == "mig") J = MIG[rand()%(MIG.size())];
   else if(EquipVei[i].posicio == "dav") J = DAV[rand()%(DAV.size())];
-  if(pressupost - preuEquip + EquipVei[i].preu - J.preu > 0){
+  if(PRESSUPOST - preuEquip + EquipVei[i].preu - J.preu > 0 and not USAT.count(J.nom)){
     if(puntsEquip < (puntsEquip - EquipVei[i].punts + J.punts)) millor = true;
-    puntsEquip = puntsEquip - EquipVei[i].punts + J.punts;
-    preuEquip = preuEquip - EquipVei[i].preu + J.preu;
+    USAT.erase(EquipVei[i].nom);
     EquipVei[i] = J;
+    USAT.insert({J.nom, true});
   }
-
+  puntsEquip = preuEquip = 0;
+  for(Jugador N : EquipVei){
+    puntsEquip += N.punts; preuEquip += N.preu;
+  }
 }
 
-bool probabilitat(double P){
-  P = int(P*100);
-  return (rand() % 100) < P;
+//Retorna True amb probabilitat T
+bool probabilitat(double T){
+  T = int(T*100);
+  return (rand() % 100) < T;
 }
 
-void updateProbabilitat(double& P, double& T, int f1, int f2){
-  //Update T
-  double alpha = ((double) rand() / (RAND_MAX));
-  T = alpha * T;
-  //Update P
-  P = exp(-abs(f2-f1)/T);
-}
-
-void metaheuristica(vector <Jugador>& Equip, int& puntsEquip, int& preuEquip, double& T, double& P){
-  //Triar posicio aleatoria per fer el canvi
+void metaheuristica(vector <Jugador>& Equip, int& puntsEquip, int& preuEquip, double& T){
+  //Triar posicio aleatoria per fer el canvi de Jugador
   int i = rand()%(Equip.size());
-  int f1 = puntsEquip;
   //Crear l'equip vei
   bool millorat = false; //indica si el nou equip es millor.
   vector<Jugador> EquipVei = Equip;
   nouEquip(i, EquipVei, puntsEquip, preuEquip, millorat);
 
-  int f2 = puntsEquip;
   //Acceptar o rebutjar l'equip
   if(millorat) Equip = EquipVei;
-  else if(probabilitat(P)) Equip = EquipVei;
-
-  //Actualitzar la temperatura i la probabilitat
-  updateProbabilitat(P, T, f1, f2);
+  else if(probabilitat(T)) Equip = EquipVei;
 }
 
 int main(int argc, char** argv){
   srand(time(NULL));
+  clock_t start = std::clock();
+  outputFile = argv[3];
+
   //Input de l'enunciat
-  CEquip confEquip;
+  ConfEquip confEquip;
   int J; // preu maxim per jugador
-  confEquip.por = 1;
-  cin >> confEquip.def >> confEquip.mig >> confEquip.dav >> confEquip.pressupost >> J;
-  pressupost = confEquip.pressupost;
+  input(argc, argv, J, confEquip);
 
   parser(argc, argv, J);
 
@@ -183,21 +247,22 @@ int main(int argc, char** argv){
   generarEquip(Equip, confEquip, puntsEquip, preuEquip);
 
   //metaheuristica
-  double T = DBL_MAX;
-  double P = 1;
-  while(T > 1){
-    metaheuristica(Equip, puntsEquip, preuEquip, T, P);
-    cout << "punts: " << puntsEquip << endl;
-    cout << "preu: " << preuEquip << endl;
-    cout << "P: " << P << endl;
-    cout << "T: " << T << endl;
+  double T = 1; //temperatura
+  int iteracions = 100000; //iteracions per cada temperatura
+  double canviTenperatura = 0.01; //Decreixement per cada iteració de temperatura
+
+  int puntsMax = 0;
+  while(T > 0){
+    for(int i = 0; i < iteracions; ++i){
+      metaheuristica(Equip, puntsEquip, preuEquip, T);
+      if(puntsMax < puntsEquip){
+        puntsMax = puntsEquip;
+        RESULTAT = Equip;
+        output(start, confEquip);
+      }
+    }
+    T -= canviTenperatura;
   }
 
+  output(start, confEquip);
 }
-
-/*
-for(Jugador J : Equip) cout << J.nom << " "  << J.posicio << " pr:" << J.preu  << " pt:" << J.punts << endl;
-cout << "punts: " << puntsEquip << endl;
-cout << "preu: " << preuEquip << endl;
-
-*/
